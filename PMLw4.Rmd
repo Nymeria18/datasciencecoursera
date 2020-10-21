@@ -1,0 +1,93 @@
+---
+title: "Practical Machine Learning"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Solution
+### Set up the environment
+```{r}
+library(caret)
+library(randomForest)
+if (!file.exists('traindataset.csv')) {
+  download.file(url = 'https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv', 
+                destfile = 'trainingdataset.csv', method = 'curl', quiet = TRUE) 
+}
+if (!file.exists('testdataset.csv')) {
+  download.file(url = 'https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv', 
+                destfile = 'testdataset.csv', method = 'curl', quiet = TRUE)
+}
+trainingdatasetRaw <- read.csv('trainingdataset.csv')
+testdatasetRaw <- read.csv('testdataset.csv')
+```
+
+1. We first remove column number and time stamps because they're irrelevant
+```{r}
+str(trainingdatasetRaw)
+train <- trainingdatasetRaw[, 6:ncol(trainingdatasetRaw)]
+```
+
+2. Spliting into testing and training from training dataset
+```{r}
+set.seed(23954)
+inTrainingdataset <- createDataPartition(y = train$classe, p = 0.7, list = F)
+training <- train[inTrainingdataset, ]
+testing <- train[-inTrainingdataset, ]
+dim(training)
+```
+
+3. Remove the variables having high correlation coeff
+```{r}
+nzv <- nearZeroVar(train, saveMetrics = T)
+keepFeat <- row.names(nzv[nzv$nzv == FALSE, ])
+training <- training[, keepFeat]
+dim(training)
+```
+
+4. Remove all NAs
+```{r}
+training <- training[, colSums(is.na(training)) == 0]
+dim(training)
+```
+
+5.5-fold cross validation
+```{r}
+modCtl <- trainControl(method = 'cv', number = 5)
+```
+
+6. Apply random forests model
+```{r}
+set.seed(2384)
+modRf <- train(classe ~. , data = training, method = 'rf', trControl = modCtl)
+```
+- Read the summary
+```{r}
+modRf$finalModel
+```
+- Predict
+```{r}
+predRf <- predict(modRf, newdata = testing)
+confusionMatrix(predRf, testing$classe)$table
+confusionMatrix(predRf, testing$classe)$overall[1]
+```
+
+7.Apply GBM model
+```{r}
+modGbm <- train(classe ~., data = training, method = 'gbm', trControl = modCtl, verbose = F)
+```
+- Read the summary
+```{r}
+modGbm$finalModel
+```
+- Predict
+```{r}
+predGbm <- predict(modGbm, newdata = testing)
+confusionMatrix(predGbm, testing$classe)$table
+confusionMatrix(predGbm, testing$classe)$overall[1]
+```
